@@ -88,7 +88,7 @@ class stt(ModelHelper):
         # Decode
         transcription = self.processor.batch_decode(
             predicted_ids, skip_special_tokens=True
-        )#[0]
+        )[0]
 
         return transcription
 
