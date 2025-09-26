@@ -1,44 +1,34 @@
-import os
-from services.speech_to_speech.pipeline import SpeechToSpeechPipeline
-from services.iot_simulator import IoTDataManager
+from services.speech_to_speech.stt import stt
+from typing import Final
+import torch
 
-input_audio="path/to/your/input_audio.wav"
-
-
+# --- Configuration ---
+# The model ID from Hugging Face Hub.
+MODEL_ID: Final[str] = "openai/whisper-tiny"
+# The path to the audio file you want to transcribe.
+AUDIO_FILE_PATH: Final[str] = "/home/kshitij/Music/MLKDream.wav"
+# Set the data type to float16 to reduce VRAM usage
+DTYPE: Final[torch.dtype] = torch.float16
 
 def main():
-    # need to do model configuration
-    stt_model=""
-    llm_model=""
-    tts_model=""
+    """
+    Main function to run the speech-to-text pipeline.
+    """
+    # 1. Create an instance of the STT class
+    transcriber = stt(model_id=MODEL_ID, torch_dtype=DTYPE)
 
-    if not os.path.exists(INPUT_AUDIO):
-        print(f"Error: Input audio file not found at '{INPUT_AUDIO}'")
-        return
-    
-    try:
-        
-        iot_manager = IoTDataManager()
+    # 2. Load the model for use.
+    print(f"Loading model: {MODEL_ID}")
+    transcriber.load_model()
+    print("Model loaded successfully.")
 
-        
-        pipeline = SpeechToSpeechPipeline(
-            stt_model_id=STT_MODEL,
-            llm_model_id=LLM_MODEL,
-            tts_model_id=TTS_MODEL,
-            data_manager=iot_manager  
-        )
-        
-        output_path = pipeline.run(INPUT_AUDIO)
-        
-        print(f"\nPipeline execution complete. Final audio is at: {output_path}")
+    # 3. Run the transcription pipeline with cleanup
+    # transcription = transcriber.run_and_cleanup(AUDIO_FILE_PATH)
 
-    except Exception as e:
-        print(f"An error occurred in the pipeline: {e}")
-
-
-    
-
-
+    # # 4. Print the result
+    # if transcription:
+    #     print("\n--- Transcription Result ---")
+    #     print(transcription)
 
 if __name__ == "__main__":
     main()
