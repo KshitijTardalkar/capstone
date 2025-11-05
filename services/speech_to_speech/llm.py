@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from typing import List, Dict, Optional
+from typing import List, Dict
 import json
 
 from services.speech_to_speech.helper import ModelHelper

@@ -1,8 +1,6 @@
 import torch
-from typing import Optional, Union
-import os
+from typing import Optional
 import gc
-import io
 
 from .stt import stt
 from .llm import LLM

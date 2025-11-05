@@ -8,7 +8,6 @@ for loading and running models, ensuring a consistent structure.
 """
 
 import torch
-import gc
 from typing import Optional, Any
 from abc import ABC, abstractmethod
 

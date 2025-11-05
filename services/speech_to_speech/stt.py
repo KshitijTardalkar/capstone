@@ -9,7 +9,7 @@ to support 8-bit quantization and `torch.compile()`.
 
 import torch
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq, BitsAndBytesConfig
-from typing import Optional, Union
+from typing import Union
 import io
 
 from services.speech_to_speech.helper import ModelHelper

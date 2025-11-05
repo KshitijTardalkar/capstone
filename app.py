@@ -8,7 +8,6 @@ from services.terminal_executor import TerminalExecutor
 import threading
 import io
 import json
-import os
 import re
 
 from config import AVAILABLE_MODELS
