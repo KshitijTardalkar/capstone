@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPEECH-TO-SPEECH TERMINAL v1.0</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1b26;
+            --bg-secondary: #24283b;
+            --bg-tertiary: #1f2335;
+            --border-color: #414868;
+            --text-primary: #c0caf5;
+            --text-secondary: #9aa5ce;
+            --text-muted: #565f89;
+            --accent-blue: #7aa2f7;
+            --accent-cyan: #7dcfff;
+            --accent-green: #9ece6a;
+            --accent-yellow: #e0af68;
+            --accent-red: #f7768e;
+            --accent-magenta: #bb9af7;
+            --glow-blue: rgba(122, 162, 247, 0.3);
+            --glow-cyan: rgba(125, 207, 255, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 0;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.3;
+        }
+
+        .terminal-header {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .terminal-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--glow-cyan);
+        }
+
+        .terminal-status {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 0;
+            height: calc(100vh - 60px);
+        }
+
+        .main-panel, .side-panel {
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) var(--bg-primary);
+        }
+
+        .main-panel::-webkit-scrollbar, .side-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .main-panel::-webkit-scrollbar-track, .side-panel::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .main-panel::-webkit-scrollbar-thumb, .side-panel::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .panel {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            margin: 1rem;
+            position: relative;
+        }
+
+        .panel-header {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .panel-title::before {
+            content: "▸";
+            color: var(--accent-cyan);
+        }
+
+        .panel-indicator {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .panel-content {
+            padding: 1.5rem;
+        }
+
+        /* Model Configuration */
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .model-group label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--accent-yellow);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.6rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--glow-cyan);
+        }
+
+        select:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--accent-cyan);
+            opacity: 0.1;
+            transition: left 0.3s;
+        }
+
+        .btn:hover::before {
+            left: 0;
+        }
+
+        .btn:hover {
+            box-shadow: 0 0 20px var(--glow-cyan);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: var(--text-muted);
+            color: var(--text-muted);
+        }
+
+        /* Recording Section */
+        .recording-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .mic-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 4px;
+            border: 3px solid var(--accent-magenta);
+            background: var(--bg-secondary);
+            color: var(--accent-magenta);
+            font-size: 3rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mic-button:hover:not(:disabled) {
+            box-shadow: 0 0 30px var(--accent-magenta);
+            transform: scale(1.05);
+        }
+
+        .mic-button.recording {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            animation: record-pulse 1.5s infinite;
+        }
+
+        @keyframes record-pulse {
+            0%, 100% {
+                box-shadow: 0 0 20px var(--accent-red);
+            }
+            50% {
+                box-shadow: 0 0 40px var(--accent-red);
+            }
+        }
+
+        .recording-status {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        /* Results Display */
+        .result-block {
+            background: var(--bg-primary);
+            border-left: 3px solid var(--accent-green);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-label {
+            font-size: 0.7rem;
+            color: var(--accent-yellow);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .result-label::before {
+            content: ">";
+            color: var(--accent-cyan);
+        }
+
+        .result-text {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            padding-left: 1rem;
+        }
+
+        /* System Monitor */
+        .side-panel {
+            background: var(--bg-secondary);
+            border-left: 2px solid var(--border-color);
+        }
+
+        .monitor-section {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem;
+        }
+
+        .monitor-section:last-child {
+            border-bottom: none;
+        }
+
+        .monitor-title {
+            font-size: 0.75rem;
+            color: var(--accent-magenta);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .monitor-title::before {
+            content: "◆";
+            color: var(--accent-cyan);
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            font-size: 0.75rem;
+            border-bottom: 1px solid var(--bg-primary);
+        }
+
+        .stat-line:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+        }
+
+        .stat-value {
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .progress-container {
+            margin-top: 0.5rem;
+            background: var(--bg-primary);
+            height: 6px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+            transition: width 0.3s;
+            box-shadow: 0 0 10px var(--glow-cyan);
+        }
+
+        .cpu-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .cpu-core {
+            background: var(--bg-primary);
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.65rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .cpu-core-label {
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .cpu-core-value {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        /* Process Table */
+        .process-table {
+            margin-top: 0.75rem;
+        }
+
+        .process-header {
+            display: grid;
+            grid-template-columns: 50px 1fr 50px 50px;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            font-size: 0.65rem;
+            color: var(--accent-yellow);
+            font-weight: 700;
+        }
+
+        .process-row {
+            display: grid;
+            grid-template-columns: 50px 1fr 50px 50px;
+            gap: 0.5rem;
+            padding: 0.4rem 0.5rem;
+            font-size: 0.65rem;
+            border-bottom: 1px solid var(--bg-primary);
+        }
+
+        .process-row:hover {
+            background: var(--bg-primary);
+        }
+
+        /* Status Messages */
+        .status-box {
+            padding: 1rem;
+            margin-top: 1rem;
+            border-left: 3px solid var(--accent-cyan);
+            background: var(--bg-primary);
+            font-size: 0.8rem;
+        }
+
+        .status-success {
+            border-left-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .status-error {
+            border-left-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .status-info {
+            border-left-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        /* Loading Animation */
+        .loader {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* GPU Info */
+        .gpu-item {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .gpu-name {
+            color: var(--accent-magenta);
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .side-panel {
+                border-left: none;
+                border-top: 2px solid var(--border-color);
+            }
+
+            .model-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cpu-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Glow effects for active elements */
+        .active-glow {
+            animation: glow 2s infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 0 0 5px var(--accent-cyan);
+            }
+            50% {
+                box-shadow: 0 0 20px var(--accent-cyan);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal-header">
+        <div class="terminal-title">⚡ SPEECH-TO-SPEECH TERMINAL v1.0</div>
+        <div class="terminal-status">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span id="connection-status">SYSTEM ONLINE</span>
+            </div>
+            <div class="status-item">
+                <span id="time-display">--:--:--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-panel">
+            <!-- Model Configuration Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Model Configuration</div>
+                    <div class="panel-indicator">[ CONFIG ]</div>
+                </div>
+                <div class="panel-content">
+                    <div class="model-grid">
+                        <div class="model-group">
+                            <label>STT_MODEL</label>
+                            <select id="stt-model">
+                                <option value="">LOADING...</option>
+                            </select>
+                        </div>
+                        <div class="model-group">
+                            <label>LLM_MODEL</label>
+                            <select id="llm-model">
+                                <option value="">LOADING...</option>
+                            </select>
+                        </div>
+                        <div class="model-group">
+                            <label>TTS_MODEL</label>
+                            <select id="tts-model">
+                                <option value="">LOADING...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn" id="init-btn" style="width: 100%;">
+                        INITIALIZE PIPELINE
+                    </button>
+                    <div id="status-message"></div>
+                </div>
+            </div>
+
+            <!-- Voice Input Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Voice Input Interface</div>
+                    <div class="panel-indicator">[ INPUT ]</div>
+                </div>
+                <div class="panel-content">
+                    <div class="recording-container">
+                        <button class="mic-button" id="mic-btn" disabled>
+                            🎤
+                        </button>
+                        <div class="recording-status" id="recording-status">
+                            INITIALIZE PIPELINE TO BEGIN
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Processing Results</div>
+                    <div class="panel-indicator">[ OUTPUT ]</div>
+                </div>
+                <div class="panel-content">
+                    <div class="result-block">
+                        <div class="result-label">SPEECH_RECOGNITION [STT]</div>
+                        <div class="result-text" id="stt-result">Awaiting audio input...</div>
+                    </div>
+                    <div class="result-block" style="border-left-color: var(--accent-blue);">
+                        <div class="result-label">AI_RESPONSE [LLM]</div>
+                        <div class="result-text" id="llm-result">Awaiting audio input...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Monitor Side Panel -->
+        <div class="side-panel">
+            <!-- CPU Monitor -->
+            <div class="monitor-section">
+                <div class="monitor-title">CPU MONITOR</div>
+                <div class="stat-line">
+                    <span class="stat-label">CORES/THREADS</span>
+                    <span class="stat-value" id="cpu-cores">--/--</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">FREQUENCY</span>
+                    <span class="stat-value" id="cpu-freq">---- MHz</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">USAGE</span>
+                    <span class="stat-value" id="cpu-usage">--%</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="cpu-progress" style="width: 0%"></div>
+                </div>
+                <div class="cpu-grid" id="cpu-cores-detail"></div>
+            </div>
+
+            <!-- Memory Monitor -->
+            <div class="monitor-section">
+                <div class="monitor-title">MEMORY</div>
+                <div class="stat-line">
+                    <span class="stat-label">TOTAL</span>
+                    <span class="stat-value" id="mem-total">-- GB</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">USED</span>
+                    <span class="stat-value" id="mem-used">-- GB</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">USAGE</span>
+                    <span class="stat-value" id="mem-percent">--%</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="mem-progress" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Disk Monitor -->
+            <div class="monitor-section">
+                <div class="monitor-title">STORAGE</div>
+                <div class="stat-line">
+                    <span class="stat-label">TOTAL</span>
+                    <span class="stat-value" id="disk-total">-- GB</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">USED</span>
+                    <span class="stat-value" id="disk-used">-- GB</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">USAGE</span>
+                    <span class="stat-value" id="disk-percent">--%</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="disk-progress" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- GPU Monitor -->
+            <div class="monitor-section">
+                <div class="monitor-title">GPU STATUS</div>
+                <div id="gpu-info">SCANNING...</div>
+            </div>
+
+            <!-- Process Monitor -->
+            <div class="monitor-section">
+                <div class="monitor-title">TOP PROCESSES</div>
+                <div class="process-table">
+                    <div class="process-header">
+                        <span>PID</span>
+                        <span>NAME</span>
+                        <span>CPU</span>
+                        <span>MEM</span>
+                    </div>
+                    <div id="process-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let isPipelineInitialized = false;
+
+        // Update time display
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('time-display').textContent = timeStr;
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Load available models
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                const models = await response.json();
+                
+                populateSelect('stt-model', models.stt);
+                populateSelect('llm-model', models.llm);
+                populateSelect('tts-model', models.tts);
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = options.map(opt => 
+                `<option value="${opt}">${opt}</option>`
+            ).join('');
+        }
+
+        // Initialize pipeline
+        document.getElementById('init-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('init-btn');
+            const statusDiv = document.getElementById('status-message');
+            
+            btn.disabled = true;
+            btn.textContent = 'INITIALIZING...';
+            statusDiv.innerHTML = '<div class="status-box status-info">⟳ LOADING MODELS...</div>';
+            
+            try {
+                const response = await fetch('/api/initialize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stt_model: document.getElementById('stt-model').value,
+                        llm_model: document.getElementById('llm-model').value,
+                        tts_model: document.getElementById('tts-model').value
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusDiv.innerHTML = '<div class="status-box status-success">✓ PIPELINE INITIALIZED</div>';
+                    isPipelineInitialized = true;
+                    document.getElementById('mic-btn').disabled = false;
+                    document.getElementById('recording-status').textContent = 'READY - CLICK TO RECORD';
+                    document.getElementById('connection-status').textContent = 'PIPELINE ACTIVE';
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status-box status-error">✗ ERROR: ${error.message}</div>`;
+                document.getElementById('connection-status').textContent = 'INITIALIZATION FAILED';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'INITIALIZE PIPELINE';
+            }
+        });
+
+        // Microphone recording
+        document.getElementById('mic-btn').addEventListener('click', async () => {
+            if (!isPipelineInitialized) return;
+            
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    await processAudio(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                document.getElementById('mic-btn').classList.add('recording');
+                document.getElementById('recording-status').textContent = 'RECORDING... [CLICK TO STOP]';
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                document.getElementById('recording-status').textContent = 'ERROR: MICROPHONE ACCESS DENIED';
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                document.getElementById('mic-btn').classList.remove('recording');
+                document.getElementById('recording-status').textContent = 'PROCESSING AUDIO...';
+            }
+        }
+
+        async function processAudio(audioBlob) {
+            try {
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result;
+                    
+                    const response = await fetch('/api/process_audio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio: base64Audio })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+                    
+                    // Update UI with results
+                    document.getElementById('stt-result').textContent = result.stt_text;
+                    document.getElementById('llm-result').textContent = result.llm_response;
+                    document.getElementById('recording-status').textContent = 'READY - CLICK TO RECORD';
+                    
+                    // Play response audio
+                    const audio = new Audio(result.audio);
+                    audio.play();
+                };
+            } catch (error) {
+                console.error('Error processing audio:', error);
+                document.getElementById('recording-status').textContent = `ERROR: ${error.message}`;
+            }
+        }
+
+        // System monitoring
+        async function updateSystemInfo() {
+            try {
+                const response = await fetch('/api/system_info');
+                const info = await response.json();
+                
+                // CPU
+                document.getElementById('cpu-cores').textContent = 
+                    `${info.cpu.cores}/${info.cpu.threads}`;
+                document.getElementById('cpu-freq').textContent = info.cpu.frequency;
+                document.getElementById('cpu-usage').textContent = 
+                    `${info.cpu.avg_percent.toFixed(1)}%`;
+                document.getElementById('cpu-progress').style.width = 
+                    `${info.cpu.avg_percent}%`;
+                
+                            // CPU cores detail
+                const coresHtml = info.cpu.percent.map((p, i) => 
+                    `<div class="cpu-core">
+                        <span class="cpu-core-label">C${i}</span>
+                        <span class="cpu-core-value">${p.toFixed(1)}%</span>
+                    </div>`
+                ).join('');
+                document.getElementById('cpu-cores-detail').innerHTML = coresHtml;
+                
+                // Memory
+let memTotal = info.memory.total;
+let memUsed = info.memory.used;
+
+// Check if values are already formatted strings or need conversion
+if (typeof memTotal === 'string') {
+    document.getElementById('mem-total').textContent = memTotal;
+} else {
+    document.getElementById('mem-total').textContent = 
+        `${(memTotal / (1024**3)).toFixed(2)} GB`;
+}
+
+if (typeof memUsed === 'string') {
+    document.getElementById('mem-used').textContent = memUsed;
+} else {
+    document.getElementById('mem-used').textContent = 
+        `${(memUsed / (1024**3)).toFixed(2)} GB`;
+}
+
+document.getElementById('mem-percent').textContent = 
+    `${info.memory.percent.toFixed(1)}%`;
+document.getElementById('mem-progress').style.width = 
+    `${info.memory.percent}%`;
+                
+                // Disk
+let diskTotal = info.disk.total;
+let diskUsed = info.disk.used;
+
+// Check if values are already formatted strings or need conversion
+if (typeof diskTotal === 'string') {
+    document.getElementById('disk-total').textContent = diskTotal;
+} else {
+    document.getElementById('disk-total').textContent = 
+        `${(diskTotal / (1024**3)).toFixed(2)} GB`;
+}
+
+if (typeof diskUsed === 'string') {
+    document.getElementById('disk-used').textContent = diskUsed;
+} else {
+    document.getElementById('disk-used').textContent = 
+        `${(diskUsed / (1024**3)).toFixed(2)} GB`;
+}
+
+document.getElementById('disk-percent').textContent = 
+    `${info.disk.percent.toFixed(1)}%`;
+document.getElementById('disk-progress').style.width = 
+    `${info.disk.percent}%`;
+                
+                // GPU
+if (info.gpu && info.gpu.length > 0) {
+    const gpuHtml = info.gpu.map(gpu => 
+        `<div class="gpu-item">
+            <div class="gpu-name">${gpu.name || 'Unknown GPU'}</div>
+            <div class="stat-line">
+                <span class="stat-label">MEMORY</span>
+                <span class="stat-value">${gpu.memory || gpu.memory_used || 'N/A'}</span>
+            </div>
+            <div class="stat-line">
+                <span class="stat-label">TEMP</span>
+                <span class="stat-value">${gpu.temperature || 'N/A'}</span>
+            </div>
+            <div class="stat-line">
+                <span class="stat-label">USAGE</span>
+                <span class="stat-value">${gpu.load || gpu.usage || 'N/A'}</span>
+            </div>
+        </div>`
+    ).join('');
+    document.getElementById('gpu-info').innerHTML = gpuHtml;
+} else {
+    document.getElementById('gpu-info').innerHTML = 
+        '<div style="color: var(--text-muted); font-size: 0.75rem;">NO GPU DETECTED</div>';
+}
+                
+                // Processes
+                const processHtml = info.processes.map(proc => 
+                    `<div class="process-row">
+                        <span>${proc.pid}</span>
+                        <span style="color: var(--text-primary);">${proc.name}</span>
+                        <span style="color: var(--accent-cyan);">${proc.cpu}%</span>
+                        <span style="color: var(--accent-green);">${proc.memory}%</span>
+                    </div>`
+                ).join('');
+                document.getElementById('process-list').innerHTML = processHtml;
+                
+            } catch (error) {
+                console.error('Error updating system info:', error);
+            }
+        }
+        
+        // Initialize
+        loadModels();
+        updateSystemInfo();
+        setInterval(updateSystemInfo, 2000); // Update every 2 seconds
+    </script>
+</body>
+</html>
