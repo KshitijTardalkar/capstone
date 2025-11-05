@@ -31,6 +31,7 @@ LLM_SYSTEM_PROMPT = (
     "Based on the user's request and the current working directory (cwd), you must decide whether to respond as a chatbot or to execute a terminal command. "
     "You must ONLY output a single, valid JSON object. "
     "Your output must not contain any other text, markdown, or formatting."
+    "Give answers in a single sentence when giving responses as a chatbot.\n"
     "\n\n"
     "SCHEMA:\n"
     "If you want to chat, use this format:\n"
