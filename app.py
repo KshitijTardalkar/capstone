@@ -12,8 +12,8 @@ import wave
 app = Flask(__name__)
 CORS(app)
 
-# Global pipeline instance
-pipeline = None
+# Global pipeline instance, created once
+pipeline = SpeechToSpeechPipeline()
 pipeline_lock = threading.Lock()
 
 # Available models configuration
@@ -37,21 +37,6 @@ AVAILABLE_MODELS = {
     ]
 }
 
-def initialize_pipeline(stt_model, llm_model, tts_model):
-    """Initialize the speech-to-speech pipeline with selected models"""
-    global pipeline
-    with pipeline_lock:
-        try:
-            pipeline = SpeechToSpeechPipeline(
-                stt_model_id=stt_model,
-                llm_model_id=llm_model,
-                tts_model_id=tts_model
-            )
-            return True
-        except Exception as e:
-            print(f"Error initializing pipeline: {e}")
-            return False
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -69,19 +54,33 @@ def initialize():
     llm_model = data.get('llm_model')
     tts_model = data.get('tts_model')
     
-    success = initialize_pipeline(stt_model, llm_model, tts_model)
-    
-    if success:
-        return jsonify({'success': True, 'message': 'Pipeline initialized successfully'})
-    else:
-        return jsonify({'success': False, 'message': 'Failed to initialize pipeline'}), 500
+    stt_use_gpu = data.get('stt_use_gpu', False)
+    llm_use_gpu = data.get('llm_use_gpu', False)
+    tts_use_gpu = data.get('tts_use_gpu', False)
+
+    with pipeline_lock:
+        try:
+            # Call the load_models method with GPU preferences
+            pipeline.load_models(
+                stt_model_id=stt_model,
+                llm_model_id=llm_model,
+                tts_model_id=tts_model,
+                stt_use_gpu=stt_use_gpu,
+                llm_use_gpu=llm_use_gpu,
+                tts_use_gpu=tts_use_gpu
+            )
+            return jsonify({'success': True, 'message': 'Pipeline models loaded successfully'})
+        except Exception as e:
+            print(f"Error initializing pipeline: {e}")
+            return jsonify({'success': False, 'message': f'Failed to initialize pipeline: {e}'}), 500
 
 @app.route('/api/process_audio', methods=['POST'])
 def process_audio():
     """Process audio through the pipeline"""
     global pipeline
     
-    if pipeline is None:
+    # Check if models are loaded inside the pipeline object
+    if not pipeline or not pipeline.models_loaded():
         return jsonify({'error': 'Pipeline not initialized'}), 400
     
     try:
@@ -102,19 +101,20 @@ def process_audio():
         output_dir = tempfile.mkdtemp()
         
         # Process through pipeline
+        # Lock to prevent processing while models might be swapping
         with pipeline_lock:
             # Get STT result
-            stt_result = pipeline.stt_service.run_and_cleanup(temp_audio_path)
+            stt_result = pipeline.stt_service.run(temp_audio_path)
             
             # Get LLM result
-            llm_result = pipeline.llm_service.run_and_cleanup(
+            llm_result = pipeline.llm_service.run(
                 f"User Input: {stt_result}\n\nRespond in a single sentence as it will be spoken by TTS.",
                 max_new_tokens=100
             )
             
             # Generate TTS audio
             output_audio_path = os.path.join(output_dir, 'response.wav')
-            tts_result = pipeline.tts_service.run_and_cleanup(llm_result, output_audio_path)
+            tts_result = pipeline.tts_service.run(llm_result, output_audio_path)
         
         # Read audio file and convert to base64
         with open(tts_result, 'rb') as audio_file:
@@ -163,7 +163,7 @@ def get_system_info():
                     'temperature': f'{gpu.temperature}°C'
                 })
         except:
-            gpus = [{'name': 'No GPU detected'}]
+            gpus = [] # Send empty list if no GPU
         
         # Process info (top processes by CPU)
         processes = []
@@ -179,6 +179,9 @@ def get_system_info():
             except:
                 continue
         
+        # Get model info from pipeline
+        pipeline_info = pipeline.get_system_info()
+
         return jsonify({
             'cpu': {
                 'percent': cpu_percent,
@@ -198,7 +201,8 @@ def get_system_info():
                 'percent': disk.percent
             },
             'gpu': gpus,
-            'processes': processes
+            'processes': processes,
+            'pipeline': pipeline_info # Add pipeline info
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

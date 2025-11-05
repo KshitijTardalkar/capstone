@@ -2,7 +2,7 @@ import torch
 from typing import Optional
 import os
 
-from .stt import stt  # Note: your class name is lowercase 'stt'
+from .stt import stt
 from .llm import LLM
 from .tts import TTS
 # IoTDataManager will have our simulated data 
@@ -15,154 +15,165 @@ class SpeechToSpeechPipeline:
 
     Orchestrates the entire workflow from audio input to audio output:
     1. Speech-to-Text (STT) - Convert user's audio query to text
-    2. IoT Data Retrieval - Fetch relevant system data based on query
-    3. Large Language Model (LLM) - Generate contextual response
-    4. Text-to-Speech (TTS) - Convert response text back to audio
+    2. Large Language Model (LLM) - Generate contextual response
+    3. Text-to-Speech (TTS) - Convert response text back to audio
 
-    This pipeline is designed for industrial control room environments where
-    operators need hands-free access to system information and controls.
+    This pipeline manages model loading and device placement (CPU/GPU)
+    based on user preferences.
 
     Attributes:
         stt_service (stt): Speech-to-text service instance
         llm_service (LLM): Large language model service instance  
         tts_service (TTS): Text-to-speech service instance
-        data_manager (IoTDataManager): IoT data retrieval service
         torch_dtype (torch.dtype): Tensor dtype based on GPU availability
     """
 
-    def __init__(
-        self, 
-        stt_model_id: str, 
-        llm_model_id: str, 
-        tts_model_id: str, 
-        # tts_vocoder_id: str,
-        #data_manager: IoTDataManager
-    ) -> None:
+    def __init__(self) -> None:
         """
-        Initialize the complete speech-to-speech pipeline.
+        Initialize the speech-to-speech pipeline container.
 
-        Args:
-            stt_model_id (str): Hugging Face model ID for speech-to-text
-                               (e.g., "openai/whisper-base")
-            llm_model_id (str): Hugging Face model ID for language model
-                               (e.g., "microsoft/DialoGPT-medium")  
-            tts_model_id (str): Hugging Face model ID for text-to-speech
-                               (e.g., "microsoft/speecht5_tts")
-            tts_vocoder_id (str): Hugging Face model ID for TTS vocoder
-                                 (e.g., "microsoft/speecht5_hifigan")
-            data_manager (IoTDataManager): Initialized IoT data management instance
-
-        Notes:
-            - Uses float16 precision on GPU for memory efficiency
-            - Falls back to float32 on CPU for compatibility
-            - All models are loaded during initialization for faster runtime
+        Models are not loaded at construction. Call `load_models()` to load them.
         """
         # Set appropriate dtype based on hardware
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         
         print("="*60)
-        print("INITIALIZING SPEECH-TO-SPEECH PIPELINE")
+        print("SPEECH-TO-SPEECH PIPELINE CONTAINER INITIALIZED")
         print("="*60)
 
-        # Initialize STT service
-        print("Step 1/4: Initializing Speech-to-Text (STT) service...")
-        self.stt_service = stt(stt_model_id, torch_dtype=self.torch_dtype)
-        self.stt_service.load_model()
-        print("✓ STT service ready")
+        # Initialize services as None. They will be loaded by load_models()
+        self.stt_service: Optional[stt] = None
+        self.llm_service: Optional[LLM] = None
+        self.tts_service: Optional[TTS] = None
+
+        # Track currently loaded models and their settings
+        self.current_stt_model_id: Optional[str] = None
+        self.current_llm_model_id: Optional[str] = None
+        self.current_tts_model_id: Optional[str] = None
+        self.stt_gpu_pref: Optional[bool] = None
+        self.llm_gpu_pref: Optional[bool] = None
+        self.tts_gpu_pref: Optional[bool] = None
+
+    def load_models(
+        self, 
+        stt_model_id: str, 
+        llm_model_id: str, 
+        tts_model_id: str,
+        stt_use_gpu: bool,
+        llm_use_gpu: bool,
+        tts_use_gpu: bool
+    ) -> None:
+        """
+        Load or reload models as needed.
         
-        # Initialize LLM service
-        print("\nStep 2/4: Initializing Large Language Model (LLM) service...")
-        self.llm_service = LLM(llm_model_id, torch_dtype=self.torch_dtype)
-        self.llm_service.load_model()
-        print("✓ LLM service ready")
+        Only loads a model if its requested model_id or GPU preference
+        is different from the currently loaded one.
+        """
+        
+        print("\n" + "="*60)
+        print("CHECKING AND LOADING PIPELINE MODELS...")
+        print("="*60)
 
-        # Initialize TTS service
-        print("\nStep 3/4: Initializing Text-to-Speech (TTS) service...")
-        self.tts_service = TTS(tts_model_id, torch_dtype=self.torch_dtype)
-        self.tts_service.load_model()
-        print("✓ TTS service ready")
+        # --- Check STT service ---
+        stt_changed = (self.current_stt_model_id != stt_model_id or 
+                       self.stt_gpu_pref != stt_use_gpu)
 
-        # Set up data manager
-        # print("\nStep 4/4: Setting up IoT Data Manager...")
-        # self.data_manager = data_manager
-        # print("✓ Data manager ready")
+        if self.stt_service is None or stt_changed:
+            print(f"Step 1/3: Loading STT service with {stt_model_id} (GPU: {stt_use_gpu})...")
+            # (Optional: Add cleanup for old model if it exists)
+            # if self.stt_service: del self.stt_service.model
+            self.stt_service = stt(stt_model_id, torch_dtype=self.torch_dtype, use_gpu=stt_use_gpu)
+            self.stt_service.load_model()
+            self.current_stt_model_id = stt_model_id
+            self.stt_gpu_pref = stt_use_gpu
+            print("✓ STT service ready")
+        else:
+            print("✓ STT service already loaded.")
+
+        
+        # --- Check LLM service ---
+        llm_changed = (self.current_llm_model_id != llm_model_id or
+                       self.llm_gpu_pref != llm_use_gpu)
+
+        if self.llm_service is None or llm_changed:
+            print(f"\nStep 2/3: Loading LLM service with {llm_model_id} (GPU: {llm_use_gpu})...")
+            # (Optional: Add cleanup for old model if it exists)
+            # if self.llm_service: del self.llm_service.model
+            self.llm_service = LLM(llm_model_id, torch_dtype=self.torch_dtype, use_gpu=llm_use_gpu)
+            self.llm_service.load_model()
+            self.current_llm_model_id = llm_model_id
+            self.llm_gpu_pref = llm_use_gpu
+            print("✓ LLM service ready")
+        else:
+            print("✓ LLM service already loaded.")
+
+        # --- Check TTS service ---
+        tts_changed = (self.current_tts_model_id != tts_model_id or
+                       self.tts_gpu_pref != tts_use_gpu)
+                       
+        if self.tts_service is None or tts_changed:
+            print(f"\nStep 3/3: Loading TTS service with {tts_model_id} (GPU: {tts_use_gpu})...")
+            # (Optional: Add cleanup for old model if it exists)
+            # if self.tts_service: del self.tts_service.model
+            self.tts_service = TTS(tts_model_id, torch_dtype=self.torch_dtype, use_gpu=tts_use_gpu)
+            self.tts_service.load_model()
+            self.current_tts_model_id = tts_model_id
+            self.tts_gpu_pref = tts_use_gpu
+            print("✓ TTS service ready")
+        else:
+            print("✓ TTS service already loaded.")
 
         print("\n" + "="*60)
-        print("PIPELINE INITIALIZATION COMPLETE")
+        print("PIPELINE MODEL LOADING COMPLETE")
         print("="*60)
+
+    def models_loaded(self) -> bool:
+        """Check if all services are initialized and have models."""
+        return all([
+            self.stt_service and self.stt_service.model is not None,
+            self.llm_service and self.llm_service.model is not None,
+            self.tts_service and self.tts_service.model is not None
+        ])
 
     def run(self, audio_file_path: str, output_dir: str = "output") -> Optional[str]:
         """
         Execute the complete speech-to-speech pipeline.
-
-        Args:
-            audio_file_path (str): Path to input audio file containing user query
-            output_dir (str): Directory to save output audio file. Defaults to "output".
-
-        Returns:
-            Optional[str]: Path to generated response audio file if successful,
-                          None if any step fails.
-
-        Raises:
-            Exception: If any pipeline step fails critically.
-
-        Workflow:
-            1. Validate input audio file exists
-            2. Transcribe audio to text using STT
-            3. Retrieve relevant IoT data based on query
-            4. Generate contextual response using LLM
-            5. Synthesize response audio using TTS
-            6. Return path to generated audio file
+        (For standalone execution, like in main.py)
         """
+        if not self.models_loaded():
+            print("❌ Error: Pipeline models are not loaded. Call load_models() first.")
+            return None
+
         print("\n" + "="*50)
         print("STARTING SPEECH-TO-SPEECH PIPELINE")
         print("="*50)
 
-        # Validate input file
         if not os.path.exists(audio_file_path):
             print(f"❌ Error: Audio file not found at {audio_file_path}")
             return None
 
-        # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
 
         try:
             # Step 1: Speech-to-Text
             print("Step 1/5: Transcribing audio input...")
-            user_query = self.stt_service.run_and_cleanup(audio_file_path)
+            user_query = self.stt_service.run(audio_file_path) # Use .run()
 
             if not user_query or not user_query.strip():
                 print("❌ STT failed to produce a valid transcript.")
                 return None
             
-            # Handle list return from batch_decode
             if isinstance(user_query, list):
                 user_query = user_query[0] if user_query else ""
                 
             user_query = user_query.strip()
             print(f"✓ Transcribed Text: '{user_query}'")
 
-            # Step 2: IoT Data Retrieval
-            # print("\nStep 2/5: Retrieving IoT system data...")
-            # iot_response = self.data_manager.get_data(user_query)
-
-            # if not iot_response or 'data' not in iot_response:
-            #     print("⚠️  Warning: No IoT data retrieved, proceeding with general response.")
-            #     iot_data = "No specific system data available."
-            # else:
-            #     iot_data = iot_response['data']
-                
-            # print(f"✓ IoT Data Retrieved: {iot_data}")
+            # Step 2: IoT Data Retrieval (Commented out)
+            # ...
 
             # Step 3: Prompt Formation
             print("\nStep 3/5: Formulating response prompt for LLM...")
-            # prompt = (
-            #     f"User Question: {user_query}\n\n"
-            #     f"System Data: {iot_data}\n\n"
-            #     "Please provide a clear, concise response for the industrial operator "
-            #     "based on the user's question and the available system data. "
-            #     "Focus on actionable information and safety considerations."
-            # )
             prompt = (
                 f"User Input: {user_query}\n\n"
                 " Identify the speech"
@@ -171,7 +182,7 @@ class SpeechToSpeechPipeline:
 
             # Step 4: LLM Response Generation
             print("\nStep 4/5: Generating response with LLM...")
-            llm_response = self.llm_service.run_and_cleanup(prompt, max_new_tokens=100)
+            llm_response = self.llm_service.run(prompt, max_new_tokens=100) # Use .run()
             
             if not llm_response or not llm_response.strip():
                 print("❌ LLM failed to generate a valid response.")
@@ -185,7 +196,7 @@ class SpeechToSpeechPipeline:
             output_filename = f"response_{hash(user_query) % 10000}.wav"
             output_audio_path = os.path.join(output_dir, output_filename)
             
-            final_audio_path = self.tts_service.run_and_cleanup(
+            final_audio_path = self.tts_service.run( # Use .run()
                 llm_response, 
                 output_audio_path
             )
@@ -210,46 +221,44 @@ class SpeechToSpeechPipeline:
     def clear_conversation_memory(self) -> None:
         """
         Clear the LLM's conversation memory for fresh interactions.
-        
-        Useful for resetting the conversation context or preventing
-        memory buildup in long-running sessions.
         """
-        self.llm_service.clear_memory()
-        print("Conversation memory cleared.")
+        if self.llm_service:
+            self.llm_service.clear_memory()
+            print("Conversation memory cleared.")
+        else:
+            print("LLM service not initialized. Cannot clear memory.")
 
     def get_system_info(self) -> dict:
         """
         Get information about the current pipeline configuration.
-
-        Returns:
-            dict: Configuration details including model IDs, device info, and status.
         """
         return {
-            "stt_model": self.stt_service.model_id,
-            "llm_model": self.llm_service.model_id, 
-            "tts_model": self.tts_service.model_id,
-            "device_type": "GPU" if torch.cuda.is_available() else "CPU",
+            "stt_model": self.stt_service.model_id if self.stt_service else "Not Loaded",
+            "stt_device": str(self.stt_service.device) if self.stt_service else "N/A",
+            "llm_model": self.llm_service.model_id if self.llm_service else "Not Loaded", 
+            "llm_device": str(self.llm_service.device) if self.llm_service else "N/A",
+            "tts_model": self.tts_service.model_id if self.tts_service else "Not Loaded",
+            "tts_device": str(self.tts_service.device) if self.tts_service else "N/A",
             "torch_dtype": str(self.torch_dtype),
             "gpu_available": torch.cuda.is_available(),
-            "models_loaded": all([
-                self.stt_service.model is not None,
-                self.llm_service.model is not None,
-                self.tts_service.model is not None
-            ])
+            "models_loaded": self.models_loaded()
         }
 
     def test_pipeline_components(self) -> dict:
         """
         Test each pipeline component individually for debugging.
-
-        Returns:
-            dict: Test results for each component.
         """
+        if not self.models_loaded():
+            return {
+                "stt": False, "llm": False, "tts": False,
+                "error": "Models not loaded."
+            }
+            
         results = {
             "stt": False,
             "llm": False, 
             "tts": False,
-            "data_manager": False
+            # "data_manager": False # Disabled
         }
 
         # Test STT
@@ -275,12 +284,7 @@ class SpeechToSpeechPipeline:
         except Exception as e:
             print(f"TTS test failed: {e}")
 
-        # Test Data Manager
-        try:
-            test_data = self.data_manager.get_data("test query")
-            if test_data:
-                results["data_manager"] = True
-        except Exception as e:
-            print(f"Data Manager test failed: {e}")
+        # Test Data Manager (Disabled)
+        # ...
 
         return results
