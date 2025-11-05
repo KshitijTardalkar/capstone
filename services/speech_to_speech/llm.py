@@ -1,14 +1,3 @@
-"""
-Large Language Model (LLM) service module.
-
-This file defines the `LLM` class, which manages the conversational agent.
-It loads a causal LM (like Llama or Gemma) and implements logic for:
-- 4-bit or 8-bit quantization (BitsAndBytes).
-- `torch.compile()` optimization.
-- Maintaining a conversational memory.
-- Generating JSON-formatted responses based on a system prompt.
-"""
-
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from typing import List, Dict, Optional
@@ -19,22 +8,6 @@ from config import LLM_SYSTEM_PROMPT
 
 
 class LLM(ModelHelper):
-    """
-    Large Language Model service for conversational AI and tool use.
-
-    Handles loading the LLM (with optional quantization) and generating
-    responses. It maintains a chat history and is guided by a system
-    prompt to produce structured JSON output.
-
-    Attributes:
-        tokenizer (AutoTokenizer): The tokenizer for the LLM.
-        quantize (str): The quantization mode ('none', '4bit', '8bit').
-        system_prompt (str): The system prompt defining the agent's behavior.
-        memory (List[Dict[str, str]]): The conversational history.
-        max_messages (int): The max number of messages (user + assistant)
-                            to keep in memory, plus the system prompt.
-    """
-
     def __init__(
         self, 
         model_id: str, 
@@ -43,16 +16,6 @@ class LLM(ModelHelper):
         quantize: str = 'none',
         use_flash_attn: bool = False
     ) -> None:
-        """
-        Initializes the LLM service.
-
-        Args:
-            model_id (str): The Hugging Face model identifier (e.g., 'meta-llama/Llama-3.2-3B-Instruct').
-            torch_dtype (torch.dtype): The desired data type for the model.
-            use_gpu (bool): Whether to use the GPU if available.
-            quantize (str): The quantization mode ('none', '4bit', '8bit').
-            use_flash_attn (bool): Whether to use Flash Attention 2.
-        """
         super().__init__(model_id, AutoModelForCausalLM, torch_dtype, use_gpu, use_flash_attn)
         self.tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
         
@@ -62,19 +25,12 @@ class LLM(ModelHelper):
         self.quantize = quantize
         self.system_prompt = LLM_SYSTEM_PROMPT
         
-        # Max history: 1 system prompt + 4 turns (4 user + 4 assistant)
         self.max_messages = 9 
         self.memory: List[Dict[str, str]] = [
             {"role": "system", "content": self.system_prompt}
         ]
 
     def load_model(self) -> None:
-        """
-        Loads the LLM from Hugging Face.
-
-        Applies 4-bit or 8-bit quantization if specified and available.
-        Applies `torch.compile()` for optimization on GPU.
-        """
         if not (self._is_gpu_available and self.use_gpu):
             self.quantize = 'none'
             self.use_flash_attn = False
@@ -142,23 +98,6 @@ class LLM(ModelHelper):
             raise
 
     def run(self, user_input: str, cwd: str, max_new_tokens: int = 256) -> str:
-        """
-        Generates a model response based on the user input and current directory.
-
-        Implements a sliding window for memory to prevent context overflow.
-        Only 'chat' type responses are saved to memory to keep it purely conversational.
-
-        Args:
-            user_input (str): The text transcribed from user's speech.
-            cwd (str): The current working directory of the terminal.
-            max_new_tokens (int): The maximum number of new tokens to generate.
-
-        Returns:
-            str: The raw JSON string output from the LLM.
-        
-        Raises:
-            ValueError: If the model is not loaded before running.
-        """
         if self.model is None:
             raise ValueError("Model not loaded yet; call load_model() before run().")
 
@@ -166,14 +105,10 @@ class LLM(ModelHelper):
         
         self.memory.append({"role": "user", "content": contextual_user_input})
 
-        # --- MEMORY PRUNING LOGIC ---
-        # Prune memory if it's too long, *after* adding the new user prompt.
-        # This keeps the system prompt (index 0) and the most recent messages.
+        # Prune older messages, keeping the system prompt and the most recent N turns
         while len(self.memory) > self.max_messages:
-            # Remove the oldest user/assistant pair (index 1 and 2)
             self.memory.pop(1)
             self.memory.pop(1)
-        # --- END MEMORY PRUNING ---
 
         input_ids = self.tokenizer.apply_chat_template(
             self.memory,
@@ -198,32 +133,22 @@ class LLM(ModelHelper):
         
         response_text = response_text.strip()
 
-        # --- NEW MEMORY LOGIC ---
-        # ONLY add the assistant's response to memory if it's a 'chat' response.
-        # This prevents command proposals (which are also JSON) or terminal
-        # output (which is never seen here anyway) from cluttering the
-        # *conversational* history.
         if response_text:
             try:
-                # Find the first { and last } to make parsing robust
                 start = response_text.find('{')
                 end = response_text.rfind('}')
                 if start != -1 and end != -1:
                     clean_json_str = response_text[start:end+1]
-                    parsed_json = json.loads(clean_json_str)
-                    
-                    if parsed_json.get("type") == "chat":
-                        self.memory.append({"role": "assistant", "content": clean_json_str})
-                # If it's a "command" or not valid JSON, we DO NOT add it to memory.
+                    # We still save command responses to memory to maintain context flow
+                    # (e.g., "ls -l" is followed by terminal output)
+                    self.memory.append({"role": "assistant", "content": clean_json_str})
             except json.JSONDecodeError:
-                # It was a hallucination (not valid JSON), so don't add it.
+                # If the LLM produces garbage, it's not saved to memory
                 print(f"Warning: LLM hallucinated non-JSON, not adding to memory: {response_text}")
                 pass 
-        # --- END NEW MEMORY LOGIC ---
 
         return response_text
 
     def clear_memory(self) -> None:
-        """Resets the conversational memory to just the system prompt."""
         print("Clearing conversational memory...")
         self.memory = [{"role": "system", "content": self.system_prompt}]

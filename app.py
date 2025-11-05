@@ -1,11 +1,3 @@
-"""
-Main Flask web application for the Speech-to-Speech Terminal.
-
-This application serves the frontend, manages the AI model pipeline,
-and handles API requests for audio processing and command execution.
-It acts as the central orchestrator for the entire system.
-"""
-
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import base64
@@ -15,7 +7,6 @@ from services.speech_to_speech.pipeline import SpeechToSpeechPipeline
 from services.terminal_executor import TerminalExecutor
 import threading
 import io
-import time
 import json
 import os
 import re
@@ -29,35 +20,24 @@ pipeline = SpeechToSpeechPipeline()
 executor = TerminalExecutor()
 pipeline_lock = threading.Lock()
 
-def split_into_sentences(text):
-    """Splits text into sentences using regex."""
-    sentences = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', text)
-    return [s.strip() for s in sentences if s.strip()]
-
 @app.route('/')
 def index():
-    """Serves the main HTML interface."""
     return render_template('index.html')
 
 @app.route('/api/models', methods=['GET'])
 def get_models():
-    """Provides the list of available models to the frontend."""
-    return jsonify(AVAILABLE_MODELS)
+    models = AVAILABLE_MODELS.copy()
+    models.pop('tts', None)
+    return jsonify(models)
 
 @app.route('/api/initialize', methods=['POST'])
 def initialize():
-    """
-    Initializes and loads the AI models based on frontend selection.
-    This is a long-running task that locks the pipeline.
-    """
     data = request.json
     stt_model = data.get('stt_model')
     llm_model = data.get('llm_model')
-    tts_model = data.get('tts_model')
     
     stt_use_gpu = data.get('stt_use_gpu', False)
     llm_use_gpu = data.get('llm_use_gpu', False)
-    tts_use_gpu = data.get('tts_use_gpu', False)
     llm_quantize = data.get('llm_quantize', 'none')
     stt_use_flash_attn = data.get('stt_use_flash_attn', False)
     llm_use_flash_attn = data.get('llm_use_flash_attn', False)
@@ -70,10 +50,8 @@ def initialize():
             pipeline.load_models(
                 stt_model_id=stt_model,
                 llm_model_id=llm_model,
-                tts_model_id=tts_model,
                 stt_use_gpu=stt_use_gpu,
                 llm_use_gpu=llm_use_gpu,
-                tts_use_gpu=tts_use_gpu,
                 llm_quantize=llm_quantize,
                 stt_use_flash_attn=stt_use_flash_attn,
                 llm_use_flash_attn=llm_use_flash_attn
@@ -85,11 +63,6 @@ def initialize():
 
 @app.route('/api/process_audio', methods=['POST'])
 def process_audio():
-    """
-    The core speech-to-action endpoint.
-    Receives audio, transcribes it (STT), reasons on it (LLM),
-    and returns either a command proposal or synthesized speech (TTS).
-    """
     global pipeline
     
     if not pipeline or not pipeline.models_loaded():
@@ -105,7 +78,6 @@ def process_audio():
         audio_buffer = io.BytesIO(audio_bytes)
         
         llm_result = ""
-        tts_audio_bytes = b""
         
         with pipeline_lock:
             stt_result = pipeline.stt_service.run(audio_buffer)
@@ -142,10 +114,22 @@ def process_audio():
 
                 elif response_type == "chat":
                     llm_result = llm_json.get("response", "I'm sorry, I couldn't process that.")
+                    return jsonify({
+                        'type': 'chat',
+                        'stt_text': stt_result,
+                        'llm_response': llm_result,
+                        'audio': None
+                    })
                 
                 else:
                     llm_result = f"Error: LLM returned unknown type: {response_type}"
                     print(f"Invalid JSON 'type': {response_type}")
+                    return jsonify({
+                        'type': 'chat',
+                        'stt_text': stt_result,
+                        'llm_response': llm_result,
+                        'audio': None 
+                    })
 
             except json.JSONDecodeError as e:
                 print(f"JSON DECODE ERROR ({e}) on: {llm_response_str}")
@@ -157,32 +141,12 @@ def process_audio():
                     print("Fallback: Could not extract chat response. Returning raw text without audio.")
                     llm_result = llm_response_str 
                     
-                    return jsonify({
-                        'type': 'chat',
-                        'stt_text': stt_result,
-                        'llm_response': llm_result,
-                        'audio': None 
-                    })
-            
-            sentences = split_into_sentences(llm_result)
-            all_audio_bytes = []
-            
-            for sentence in sentences:
-                if sentence:
-                    print(f"Synthesizing: {sentence}")
-                    audio_chunk = pipeline.tts_service.run(sentence)
-                    all_audio_bytes.append(audio_chunk)
-            
-            tts_audio_bytes = b"".join(all_audio_bytes)
-        
-        audio_base64 = base64.b64encode(tts_audio_bytes).decode('utf-8')
-        
-        return jsonify({
-            'type': 'chat',
-            'stt_text': stt_result,
-            'llm_response': llm_result,
-            'audio': f'data:audio/wav;base64,{audio_base64}'
-        })
+                return jsonify({
+                    'type': 'chat',
+                    'stt_text': stt_result,
+                    'llm_response': llm_result,
+                    'audio': None 
+                })
         
     except Exception as e:
         print(f"Error processing audio: {e}")
@@ -190,10 +154,6 @@ def process_audio():
 
 @app.route('/api/execute_command', methods=['POST'])
 def execute_command():
-    """
-    Executes a terminal command provided by the frontend.
-    Uses the stateful TerminalExecutor to manage CWD.
-    """
     global executor
     data = request.json
     command = data.get('command')
@@ -210,10 +170,6 @@ def execute_command():
 
 @app.route('/api/system_info', methods=['GET'])
 def get_system_info():
-    """
-    Provides detailed hardware (CPU, GPU, RAM) and pipeline status
-    to the frontend monitoring panel.
-    """
     global executor
     try:
         cpu_percent = psutil.cpu_percent(interval=None, percpu=True)

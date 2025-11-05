@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPEECH-TO-SPEECH TERMINAL v3.1</title>
+    <title>SPEECH-TO-COMMAND TERMINAL v3.1 (S2C)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -286,7 +286,6 @@
             margin-bottom: 1.5rem;
         }
 
-        /* --- New Uniform Model Row --- */
         .model-row {
             display: grid;
             grid-template-columns: 1fr 110px 80px 80px;
@@ -316,11 +315,10 @@
             border: 1px dashed var(--border-color);
             opacity: 0.5;
         }
-        /* --- End Uniform Model Row --- */
 
         select {
             width: 100%;
-            height: 40px; /* Set fixed height */
+            height: 40px;
             padding: 0.6rem;
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
@@ -351,7 +349,7 @@
             position: relative;
             display: inline-block;
             width: 70px;
-            height: 40px; /* Set fixed height */
+            height: 40px;
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
             cursor: pointer;
@@ -379,10 +377,10 @@
         .slider:before {
             position: absolute;
             content: "";
-            height: 30px; /* Adjusted height */
+            height: 30px;
             width: 22px;
             left: 4px;
-            bottom: 4px; /* Adjusted position */
+            bottom: 4px;
             background-color: var(--text-muted);
             transition: .4s;
         }
@@ -546,10 +544,6 @@
             animation: record-pulse 1.5s infinite;
         }
         
-        .mic-button.listening {
-            animation: listening-pulse 2s infinite ease-in-out;
-        }
-
         @keyframes record-pulse {
             0%, 100% {
                 box-shadow: 0 0 20px var(--glow-red);
@@ -559,6 +553,10 @@
             }
         }
         
+        .mic-button:hover:not(.recording):not(:disabled) {
+            animation: listening-pulse 2s infinite ease-in-out;
+        }
+
         @keyframes listening-pulse {
             0%, 100% {
                 transform: scale(1);
@@ -889,7 +887,6 @@
                 grid-template-columns: repeat(2, 1fr);
             }
             
-            /* --- Updated Responsive Grid --- */
             .model-row {
                 grid-template-columns: 1fr 1fr;
                 gap: 1rem;
@@ -903,14 +900,13 @@
             .toggle-switch {
                 justify-self: start;
             }
-            /* --- End Responsive Grid --- */
         }
     </style>
 </head>
 <body>
     <div class="terminal-header">
         <div class="header-left">
-            <div class="terminal-title">⚡ SPEECH-TO-SPEECH TERMINAL v3.1</div>
+            <div class="terminal-title">⚡ SPEECH-TO-COMMAND TERMINAL v3.1</div>
             <button id="settings-btn" class="header-btn">⚙️ Settings</button>
         </div>
         <div class="terminal-status">
@@ -973,25 +969,6 @@
                         </label>
                     </div>
 
-                    <!-- TTS Row -->
-                    <div class="model-row">
-                        <label>TTS_MODEL</label>
-                        <select id="tts-model" class="model-select">
-                            <option value="">LOADING...</option>
-                        </select>
-                        <select class="quantize-select" disabled>
-                            <option value="none">N/A</option>
-                        </select>
-                        <label class="toggle-switch flash-attn-toggle disabled">
-                            <input type="checkbox" id="tts-flash-attn" disabled>
-                            <span class="slider fa-toggle"></span>
-                        </label>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="tts-gpu" checked>
-                            <span class="slider cpu-gpu"></span>
-                        </label>
-                    </div>
-
                 </div>
                 <button class="btn" id="init-btn" style="width: 100%;">
                     INITIALIZE PIPELINE
@@ -1050,10 +1027,6 @@
                     <div class="model-status-item">
                         <div class="model-status-title">LLM <span id="llm-device" class="model-status-device">--</span></div>
                         <div id="llm-model-name" class="model-status-name">Not Loaded</div>
-                    </div>
-                    <div class="model-status-item">
-                        <div class="model-status-title">TTS <span id="tts-device" class="model-status-device">--</span></div>
-                        <div id="tts-model-name" class="model-status-name">Not Loaded</div>
                     </div>
                     <div class="model-status-item">
                         <div class="model-status-title">CWD <span id="cwd-device" class="model-status-device cpu">HOST</span></div>
@@ -1141,8 +1114,6 @@
         let isRecording = false;
         let isPipelineInitialized = false;
         let systemInfoInterval;
-        let currentAudio = null;
-        let listeningAnimationId = null;
 
         const micBtn = document.getElementById('mic-btn');
         const recordingStatus = document.getElementById('recording-status');
@@ -1178,7 +1149,6 @@
                 
                 populateSelect('stt-model', models.stt);
                 populateSelect('llm-model', models.llm);
-                populateSelect('tts-model', models.tts);
             } catch (error) {
                 console.error('Error loading models:', error);
             }
@@ -1206,10 +1176,8 @@
                     body: JSON.stringify({
                         stt_model: document.getElementById('stt-model').value,
                         llm_model: document.getElementById('llm-model').value,
-                        tts_model: document.getElementById('tts-model').value,
                         stt_use_gpu: document.getElementById('stt-gpu').checked,
                         llm_use_gpu: document.getElementById('llm-gpu').checked,
-                        tts_use_gpu: document.getElementById('tts-gpu').checked,
                         llm_quantize: document.getElementById('llm-quantize').value,
                         stt_use_flash_attn: document.getElementById('stt-flash-attn').checked,
                         llm_use_flash_attn: document.getElementById('llm-flash-attn').checked
@@ -1224,7 +1192,7 @@
                     micBtn.disabled = false;
                     recordingStatus.textContent = 'READY - CLICK TO RECORD';
                     document.getElementById('connection-status').textContent = 'PIPELINE ACTIVE';
-                    addLogMessage('assistant', 'Pipeline initialized. Ready to assist.');
+                    addLogMessage('assistant', 'Pipeline initialized. Ready for voice commands.');
                     updateSystemInfo();
                     modalOverlay.style.display = 'none';
                 } else {
@@ -1243,11 +1211,6 @@
         micBtn.addEventListener('click', async () => {
             if (!isPipelineInitialized) return;
             
-            if (currentAudio && !currentAudio.paused) {
-                currentAudio.pause();
-                currentAudio = null;
-            }
-
             if (!isRecording) {
                 startRecording();
             } else {
@@ -1276,7 +1239,6 @@
                 
                 micBtn.classList.add('recording');
                 micBtn.classList.remove('listening');
-                stopListeningAnimation();
                 recordingStatus.textContent = 'RECORDING... [CLICK TO STOP]';
             } catch (error) {
                 console.error('Error starting recording:', error);
@@ -1291,37 +1253,10 @@
                 isRecording = false;
                 
                 micBtn.classList.remove('recording');
-                micBtn.classList.add('listening');
-                startListeningAnimation();
                 recordingStatus.textContent = 'PROCESSING AUDIO...';
             }
         }
         
-        function startListeningAnimation() {
-            if (listeningAnimationId) return;
-            micBtn.classList.add('listening');
-            let time = 0;
-            function pulse() {
-                time += 0.05;
-                const scale = 1 + Math.sin(time) * 0.05;
-                const shadow = 20 + Math.sin(time) * 15;
-                micBtn.style.transform = `scale(${scale})`;
-                micBtn.style.boxShadow = `0 0 ${shadow}px var(--glow-magenta)`;
-                listeningAnimationId = requestAnimationFrame(pulse);
-            }
-            pulse();
-        }
-
-        function stopListeningAnimation() {
-            if (listeningAnimationId) {
-                cancelAnimationFrame(listeningAnimationId);
-                listeningAnimationId = null;
-            }
-            micBtn.classList.remove('listening');
-            micBtn.style.transform = 'scale(1)';
-            micBtn.style.boxShadow = 'none';
-        }
-
         async function processAudio(audioBlob) {
             let thinkingEntry = addLogMessage('assistant', 'Thinking...', { isThinking: true });
             try {
@@ -1350,12 +1285,8 @@
                         addLogMessage('command', result.command);
                     } 
                     else if (result.type === 'chat') {
+                        // Display chat response as text only
                         addLogMessage('assistant', result.llm_response);
-                        if (result.audio) {
-                            currentAudio = new Audio(result.audio);
-                            currentAudio.play();
-                            currentAudio.onended = () => { currentAudio = null; };
-                        }
                     }
                     
                     recordingStatus.textContent = 'READY - CLICK TO RECORD';
@@ -1557,9 +1488,6 @@
                         document.getElementById('llm-model-name').textContent = info.pipeline.llm_model;
                         updateDeviceUI('llm-device', info.pipeline.llm_device);
 
-                        document.getElementById('tts-model-name').textContent = info.pipeline.tts_model;
-                        updateDeviceUI('tts-device', info.pipeline.tts_device);
-
                         cwdPath.textContent = info.pipeline.current_working_directory || 'N/A';
                     }
 
@@ -1591,15 +1519,19 @@
             updateSystemInfo();
             systemInfoInterval = setInterval(updateSystemInfo, 2000);
         });
-        
+
         micBtn.addEventListener('mouseenter', () => {
             if (!isRecording) {
-                startListeningAnimation();
+                micBtn.classList.add('listening');
+                micBtn.style.transform = 'scale(1.05)';
+                micBtn.style.boxShadow = '0 0 30px var(--glow-magenta)';
             }
         });
         micBtn.addEventListener('mouseleave', () => {
             if (!isRecording) {
-                stopListeningAnimation();
+                micBtn.classList.remove('listening');
+                micBtn.style.transform = 'scale(1)';
+                micBtn.style.boxShadow = 'none';
             }
         });
 
