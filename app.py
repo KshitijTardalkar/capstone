@@ -1,32 +1,55 @@
+"""
+Main Flask web application for the Speech-to-Speech Terminal.
+
+This application serves the frontend, manages the AI model pipeline,
+and handles API requests for audio processing and command execution.
+It acts as the central orchestrator for the entire system.
+"""
+
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import base64
 import psutil
 import GPUtil
 from services.speech_to_speech.pipeline import SpeechToSpeechPipeline
+from services.terminal_executor import TerminalExecutor
 import threading
 import io
 import time
+import json
+import os
+import re
 
-from config import AVAILABLE_MODELS, LLM_USER_PROMPT_TEMPLATE
+from config import AVAILABLE_MODELS
 
 app = Flask(__name__)
 CORS(app)
 
 pipeline = SpeechToSpeechPipeline()
+executor = TerminalExecutor()
 pipeline_lock = threading.Lock()
 
+def split_into_sentences(text):
+    """Splits text into sentences using regex."""
+    sentences = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!)\s', text)
+    return [s.strip() for s in sentences if s.strip()]
 
 @app.route('/')
 def index():
+    """Serves the main HTML interface."""
     return render_template('index.html')
 
 @app.route('/api/models', methods=['GET'])
 def get_models():
+    """Provides the list of available models to the frontend."""
     return jsonify(AVAILABLE_MODELS)
 
 @app.route('/api/initialize', methods=['POST'])
 def initialize():
+    """
+    Initializes and loads the AI models based on frontend selection.
+    This is a long-running task that locks the pipeline.
+    """
     data = request.json
     stt_model = data.get('stt_model')
     llm_model = data.get('llm_model')
@@ -41,6 +64,9 @@ def initialize():
 
     with pipeline_lock:
         try:
+            if pipeline.llm_service:
+                pipeline.llm_service.clear_memory()
+                
             pipeline.load_models(
                 stt_model_id=stt_model,
                 llm_model_id=llm_model,
@@ -59,6 +85,11 @@ def initialize():
 
 @app.route('/api/process_audio', methods=['POST'])
 def process_audio():
+    """
+    The core speech-to-action endpoint.
+    Receives audio, transcribes it (STT), reasons on it (LLM),
+    and returns either a command proposal or synthesized speech (TTS).
+    """
     global pipeline
     
     if not pipeline or not pipeline.models_loaded():
@@ -73,21 +104,81 @@ def process_audio():
         
         audio_buffer = io.BytesIO(audio_bytes)
         
+        llm_result = ""
+        tts_audio_bytes = b""
+        
         with pipeline_lock:
             stt_result = pipeline.stt_service.run(audio_buffer)
             
-            prompt = LLM_USER_PROMPT_TEMPLATE.format(stt_result=stt_result)
-            
-            llm_result = pipeline.llm_service.run(
-                prompt,
-                max_new_tokens=100
+            if not stt_result:
+                 return jsonify({'error': 'STT failed to transcribe audio'}), 400
+
+            llm_response_str = pipeline.llm_service.run(
+                user_input=stt_result,
+                cwd=executor.cwd,
+                max_new_tokens=256
             )
             
-            tts_audio_bytes = pipeline.tts_service.run(llm_result)
+            print(f"LLM Raw Output: {llm_response_str}")
+
+            try:
+                start = llm_response_str.find('{')
+                end = llm_response_str.rfind('}') + 1
+                
+                if start == -1 or end == -1:
+                    raise json.JSONDecodeError("No JSON object found", llm_response_str, 0)
+                
+                json_str = llm_response_str[start:end]
+                
+                llm_json = json.loads(json_str)
+                response_type = llm_json.get("type")
+
+                if response_type == "command":
+                    return jsonify({
+                        "type": "command",
+                        "command": llm_json.get("command", "echo 'error: no command provided'"),
+                        "stt_text": stt_result
+                    })
+
+                elif response_type == "chat":
+                    llm_result = llm_json.get("response", "I'm sorry, I couldn't process that.")
+                
+                else:
+                    llm_result = f"Error: LLM returned unknown type: {response_type}"
+                    print(f"Invalid JSON 'type': {response_type}")
+
+            except json.JSONDecodeError as e:
+                print(f"JSON DECODE ERROR ({e}) on: {llm_response_str}")
+                match = re.search(r'["\']response["\']\s*:\s*["\'](.*?)["\']', llm_response_str, re.DOTALL)
+                if match:
+                    llm_result = match.group(1).strip()
+                    print(f"Fallback: Extracted chat response: {llm_result}")
+                else:
+                    print("Fallback: Could not extract chat response. Returning raw text without audio.")
+                    llm_result = llm_response_str 
+                    
+                    return jsonify({
+                        'type': 'chat',
+                        'stt_text': stt_result,
+                        'llm_response': llm_result,
+                        'audio': None 
+                    })
+            
+            sentences = split_into_sentences(llm_result)
+            all_audio_bytes = []
+            
+            for sentence in sentences:
+                if sentence:
+                    print(f"Synthesizing: {sentence}")
+                    audio_chunk = pipeline.tts_service.run(sentence)
+                    all_audio_bytes.append(audio_chunk)
+            
+            tts_audio_bytes = b"".join(all_audio_bytes)
         
         audio_base64 = base64.b64encode(tts_audio_bytes).decode('utf-8')
         
         return jsonify({
+            'type': 'chat',
             'stt_text': stt_result,
             'llm_response': llm_result,
             'audio': f'data:audio/wav;base64,{audio_base64}'
@@ -97,8 +188,33 @@ def process_audio():
         print(f"Error processing audio: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/execute_command', methods=['POST'])
+def execute_command():
+    """
+    Executes a terminal command provided by the frontend.
+    Uses the stateful TerminalExecutor to manage CWD.
+    """
+    global executor
+    data = request.json
+    command = data.get('command')
+
+    if not command:
+        return jsonify({'error': 'No command provided', 'cwd': executor.cwd}), 400
+
+    try:
+        result = executor.execute(command)
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error executing command: {e}")
+        return jsonify({'output': str(e), 'cwd': executor.cwd}), 500
+
 @app.route('/api/system_info', methods=['GET'])
 def get_system_info():
+    """
+    Provides detailed hardware (CPU, GPU, RAM) and pipeline status
+    to the frontend monitoring panel.
+    """
+    global executor
     try:
         cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
         cpu_freq = psutil.cpu_freq()
@@ -137,6 +253,7 @@ def get_system_info():
                 continue
         
         pipeline_info = pipeline.get_system_info()
+        pipeline_info['current_working_directory'] = executor.cwd
 
         return jsonify({
             'cpu': {

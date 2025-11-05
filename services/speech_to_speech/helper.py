@@ -1,9 +1,35 @@
+"""
+Base class for loading and managing AI models.
+
+This file defines an abstract base class (ABC) `ModelHelper` which provides a
+common interface for all models (STT, LLM, TTS) in the application.
+It handles device selection (CPU/GPU) and provides abstract methods
+for loading and running models, ensuring a consistent structure.
+"""
+
 import torch
 import gc
 from typing import Optional, Any
+from abc import ABC, abstractmethod
 
 
-class ModelHelper:
+class ModelHelper(ABC):
+    """
+    Abstract base class for a model service.
+
+    Provides common functionality like device auto-selection and a standardized
+    interface for loading and running models.
+
+    Attributes:
+        model_id (str): The Hugging Face model identifier.
+        model_class (type): The Hugging Face `AutoModel` class (e.g., AutoModelForCausalLM).
+        torch_dtype (torch.dtype): The data type for model weights (e.g., torch.float16).
+        use_gpu (bool): Flag to attempt to use the GPU if available.
+        use_flash_attn (bool): Flag to attempt to use Flash Attention 2.
+        device (torch.device): The device (cuda or cpu) the model will run on.
+        model (Optional[torch.nn.Module]): The loaded model instance.
+    """
+
     def __init__(
         self,
         model_id: str,
@@ -22,51 +48,30 @@ class ModelHelper:
 
     @property
     def _is_gpu_available(self) -> bool:
+        """Checks if a CUDA-compatible GPU is available."""
         return torch.cuda.is_available()
 
     def _get_target_device(self) -> torch.device:
+        """Determines the target device (cuda or cpu) based on availability and user preference."""
         if self._is_gpu_available and self.use_gpu:
             return torch.device("cuda")
         return torch.device("cpu")
 
+    @abstractmethod
     def load_model(self) -> None:
-        model_kwargs = {
-            "low_cpu_mem_usage": True,
-            "use_safetensors": True
-        }
+        """
+        Abstract method for loading the model.
 
-        if self._is_gpu_available and self.use_gpu:
-            model_kwargs["device_map"] = "auto"
-            if self.use_flash_attn:
-                model_kwargs["attn_implementation"] = "flash_attention_2"
-                model_kwargs["torch_dtype"] = torch.float16 
-                self.torch_dtype = torch.float16
-                print("Enabling Flash Attention 2 (forcing torch.float16)")
-            else:
-                model_kwargs["torch_dtype"] = self.torch_dtype
-        else:
-            model_kwargs["device_map"] = "cpu"
-            model_kwargs["torch_dtype"] = torch.float32 
-            self.torch_dtype = torch.float32
+        Subclasses must implement this method to handle specific model
+        loading logic, including quantization and compilation.
+        """
+        raise NotImplementedError("Subclasses must implement load_model()")
 
-        try:
-            self.model = self.model_class.from_pretrained(
-                self.model_id,
-                **model_kwargs
-            )
-            
-            self.model.eval()
-            
-            if hasattr(self.model, 'device'):
-                 self.device = self.model.device
-            
-            print(f"Model {self.model_id} loaded on {self.device} with dtype {self.torch_dtype}")
-
-        except Exception as exc:
-            print(f"Error loading model {self.model_id}: {exc}")
-            if "flash_attention_2" in str(exc):
-                print("!!! Flash Attention 2 failed to load. The model may not support it, or your GPU/driver is incompatible. !!!")
-            raise
-
+    @abstractmethod
     def run(self, inputs: Any, **kwargs) -> Any:
+        """
+        Abstract method for running model inference.
+
+        Subclasses must implement this to define the inference logic.
+        """
         raise NotImplementedError("Subclasses must implement run(inputs)")
