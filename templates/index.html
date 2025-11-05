@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPEECH-TO-SPEECH TERMINAL v1.1</title>
+    <title>SPEECH-TO-SPEECH TERMINAL v1.3</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -149,7 +149,6 @@
             align-items: center;
         }
 
-        /* Add cursor pointer for collapsible headers */
         .panel-header.collapsible {
             cursor: pointer;
             user-select: none;
@@ -169,10 +168,9 @@
         .panel-title::before {
             content: "▸";
             color: var(--accent-cyan);
-            transition: transform 0.3s ease; /* Add transition for arrow */
+            transition: transform 0.3s ease;
         }
 
-        /* Arrow rotation for expanded panel */
         .panel.expanded .panel-title::before {
             transform: rotate(90deg);
         }
@@ -187,7 +185,6 @@
             padding: 1.5rem;
         }
 
-        /* Collapsible panel content */
         .panel-content.collapsible {
             padding-top: 0;
             padding-bottom: 0;
@@ -198,11 +195,10 @@
 
         .panel.expanded .panel-content.collapsible {
             padding: 1.5rem;
-            max-height: 1000px; /* Set to a large enough value */
+            max-height: 1000px;
             transition: max-height 0.5s ease-in, padding 0.5s ease-in;
         }
 
-        /* Model Configuration */
         .model-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -212,20 +208,46 @@
 
         .model-group {
             display: grid;
-            grid-template-columns: 1fr 80px;
+            grid-template-columns: 1fr 80px 80px;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .llm-model-group {
+            display: grid;
+            grid-template-columns: 1fr 100px 80px 80px;
             gap: 1rem;
             align-items: center;
         }
 
-        .model-group label {
+        .model-group label, .llm-model-group label {
             display: block;
             font-size: 0.75rem;
             color: var(--accent-yellow);
             margin-bottom: 0.5rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            grid-column: 1 / -1; /* Span both columns */
+            grid-column: 1 / -1;
         }
+        
+        .llm-model-group .model-select { grid-column: 1 / 2; }
+        .llm-model-group .quantize-select { grid-column: 2 / 3; }
+        .llm-model-group .toggle-switch { grid-column: 4 / 5; }
+        .llm-model-group .flash-attn-toggle { grid-column: 3 / 4; }
+
+        .model-group .model-select { grid-column: 1 / 2; }
+        .model-group .flash-attn-toggle { grid-column: 2 / 3; }
+        .model-group .toggle-switch { grid-column: 3 / 4; }
+        
+        .tts-model-group {
+             display: grid;
+            grid-template-columns: 1fr 80px;
+            gap: 1rem;
+            align-items: center;
+        }
+        .tts-model-group .model-select { grid-column: 1 / 2; }
+        .tts-model-group .toggle-switch { grid-column: 2 / 3; }
+
 
         select {
             width: 100%;
@@ -249,7 +271,6 @@
             border-color: var(--accent-blue);
         }
         
-        /* Toggle Switch */
         .toggle-switch {
             position: relative;
             display: inline-block;
@@ -258,6 +279,7 @@
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
             cursor: pointer;
+            justify-self: end;
         }
         .toggle-switch input {
             opacity: 0;
@@ -288,23 +310,48 @@
             background-color: var(--text-muted);
             transition: .4s;
         }
-        .slider::after {
+        .slider.cpu-gpu::after {
             content: "CPU";
             position: absolute;
             right: 8px;
         }
-        input:checked + .slider {
+        input:checked + .slider.cpu-gpu {
             background-color: var(--bg-primary);
         }
-        input:checked + .slider:before {
+        input:checked + .slider.cpu-gpu:before {
             transform: translateX(38px);
             background-color: var(--accent-green);
         }
-        input:checked + .slider::after {
+        input:checked + .slider.cpu-gpu::after {
             content: "GPU";
             color: var(--accent-green);
             left: 8px;
             right: auto;
+        }
+
+        /* FA2 Toggle */
+        .slider.fa-toggle::after {
+            content: "FA2";
+            position: absolute;
+            right: 12px;
+            color: var(--text-muted)
+        }
+        input:checked + .slider.fa-toggle {
+            background-color: var(--bg-primary);
+        }
+        input:checked + .slider.fa-toggle:before {
+            transform: translateX(38px);
+            background-color: var(--accent-cyan);
+        }
+        input:checked + .slider.fa-toggle::after {
+            content: "FA2";
+            color: var(--accent-cyan);
+            left: 12px;
+            right: auto;
+        }
+        input:disabled + .slider {
+            cursor: not-allowed;
+            opacity: 0.5;
         }
 
 
@@ -352,7 +399,6 @@
             color: var(--text-muted);
         }
 
-        /* Recording Section */
         .recording-container {
             display: flex;
             flex-direction: column;
@@ -408,7 +454,6 @@
             border-left: 3px solid var(--accent-cyan);
         }
 
-        /* Results Display */
         .result-block {
             background: var(--bg-primary);
             border-left: 3px solid var(--accent-green);
@@ -439,7 +484,6 @@
             padding-left: 1rem;
         }
 
-        /* System Monitor */
         .side-panel {
             background: var(--bg-secondary);
             border-left: 2px solid var(--border-color);
@@ -533,7 +577,6 @@
             font-weight: 700;
         }
 
-        /* Process Table */
         .process-table {
             margin-top: 0.75rem;
         }
@@ -563,7 +606,6 @@
             background: var(--bg-primary);
         }
 
-        /* Status Messages */
         .status-box {
             padding: 1rem;
             margin-top: 1rem;
@@ -587,7 +629,6 @@
             color: var(--accent-blue);
         }
 
-        /* Loading Animation */
         .loader {
             display: inline-block;
             width: 12px;
@@ -603,7 +644,6 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* GPU Info */
         .gpu-item {
             background: var(--bg-primary);
             padding: 0.75rem;
@@ -618,7 +658,6 @@
             font-weight: 700;
         }
 
-        /* Pipeline Model Status */
         .model-status-item {
              background: var(--bg-primary);
             padding: 0.75rem;
@@ -649,7 +688,6 @@
         }
 
 
-        /* Responsive */
         @media (max-width: 1024px) {
             .container {
                 grid-template-columns: 1fr;
@@ -668,7 +706,7 @@
 </head>
 <body>
     <div class="terminal-header">
-        <div class="terminal-title">⚡ SPEECH-TO-SPEECH TERMINAL v1.1</div>
+        <div class="terminal-title">⚡ SPEECH-TO-SPEECH TERMINAL v1.3</div>
         <div class="terminal-status">
             <div class="status-item">
                 <div class="status-dot"></div>
@@ -692,32 +730,45 @@
                     <div class="model-grid">
                         <div class="model-group">
                             <label>STT_MODEL</label>
-                            <select id="stt-model">
+                            <select id="stt-model" class="model-select">
                                 <option value="">LOADING...</option>
                             </select>
+                            <label class="toggle-switch flash-attn-toggle">
+                                <input type="checkbox" id="stt-flash-attn" checked>
+                                <span class="slider fa-toggle"></span>
+                            </label>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="stt-gpu" checked>
-                                <span class="slider"></span>
+                                <span class="slider cpu-gpu"></span>
                             </label>
                         </div>
-                        <div class="model-group">
+                        <div class="llm-model-group">
                             <label>LLM_MODEL</label>
-                            <select id="llm-model">
+                            <select id="llm-model" class="model-select">
                                 <option value="">LOADING...</option>
                             </select>
+                            <select id="llm-quantize" class="quantize-select">
+                                <option value="none">None</option>
+                                <option value="4bit" selected>4-bit</option>
+                                <option value="8bit">8-bit</option>
+                            </select>
+                            <label class="toggle-switch flash-attn-toggle">
+                                <input type="checkbox" id="llm-flash-attn" checked>
+                                <span class="slider fa-toggle"></span>
+                            </label>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="llm-gpu" checked>
-                                <span class="slider"></span>
+                                <span class="slider cpu-gpu"></span>
                             </label>
                         </div>
-                        <div class="model-group">
+                        <div class="tts-model-group">
                             <label>TTS_MODEL</label>
-                            <select id="tts-model">
+                            <select id="tts-model" class="model-select">
                                 <option value="">LOADING...</option>
                             </select>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="tts-gpu" checked>
-                                <span class="slider"></span>
+                                <span class="slider cpu-gpu"></span>
                             </label>
                         </div>
                     </div>
@@ -874,8 +925,8 @@
         let audioChunks = [];
         let isRecording = false;
         let isPipelineInitialized = false;
+        let systemInfoInterval;
 
-        // Update time display
         function updateTime() {
             const now = new Date();
             const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
@@ -884,13 +935,11 @@
         setInterval(updateTime, 1000);
         updateTime();
 
-        // --- Collapsible Panel Logic ---
         document.getElementById('model-config-header').addEventListener('click', () => {
             const panel = document.getElementById('model-config-panel');
             panel.classList.toggle('expanded');
         });
 
-        // Load available models
         async function loadModels() {
             try {
                 const response = await fetch('/api/models');
@@ -911,14 +960,13 @@
             ).join('');
         }
 
-        // Initialize pipeline
         document.getElementById('init-btn').addEventListener('click', async () => {
             const btn = document.getElementById('init-btn');
             const statusDiv = document.getElementById('status-message');
             
             btn.disabled = true;
             btn.textContent = 'INITIALIZING...';
-            statusDiv.innerHTML = '<div class="status-box status-info">⟳ LOADING MODELS...</div>';
+            statusDiv.innerHTML = '<div class="status-box status-info">⟳ LOADING MODELS... (This may take several minutes)</div>';
             
             try {
                 const response = await fetch('/api/initialize', {
@@ -930,7 +978,10 @@
                         tts_model: document.getElementById('tts-model').value,
                         stt_use_gpu: document.getElementById('stt-gpu').checked,
                         llm_use_gpu: document.getElementById('llm-gpu').checked,
-                        tts_use_gpu: document.getElementById('tts-gpu').checked
+                        tts_use_gpu: document.getElementById('tts-gpu').checked,
+                        llm_quantize: document.getElementById('llm-quantize').value,
+                        stt_use_flash_attn: document.getElementById('stt-flash-attn').checked,
+                        llm_use_flash_attn: document.getElementById('llm-flash-attn').checked
                     })
                 });
                 
@@ -942,7 +993,6 @@
                     document.getElementById('mic-btn').disabled = false;
                     document.getElementById('recording-status').textContent = 'READY - CLICK TO RECORD';
                     document.getElementById('connection-status').textContent = 'PIPELINE ACTIVE';
-                    // Trigger a system info update immediately
                     updateSystemInfo(); 
                 } else {
                     throw new Error(result.message);
@@ -956,7 +1006,6 @@
             }
         });
 
-        // Microphone recording
         document.getElementById('mic-btn').addEventListener('click', async () => {
             if (!isPipelineInitialized) return;
             
@@ -1027,12 +1076,10 @@
                         throw new Error(result.error);
                     }
                     
-                    // Update UI with results
                     document.getElementById('stt-result').textContent = result.stt_text;
                     document.getElementById('llm-result').textContent = result.llm_response;
                     document.getElementById('recording-status').textContent = 'READY - CLICK TO RECORD';
                     
-                    // Play response audio
                     const audio = new Audio(result.audio);
                     audio.play();
                 };
@@ -1054,112 +1101,131 @@
                 el.classList.add('cpu');
             }
         }
+        
+        function setTogglesDisabled(disabled) {
+             document.querySelectorAll('.toggle-switch input').forEach(toggle => {
+                toggle.disabled = disabled;
+                if(disabled) {
+                    toggle.checked = false;
+                }
+            });
+            document.querySelectorAll('.flash-attn-toggle input').forEach(toggle => {
+                toggle.disabled = disabled;
+                 if(disabled) {
+                    toggle.checked = false;
+                }
+            });
+        }
 
-        // System monitoring
         async function updateSystemInfo() {
-            try {
-                const response = await fetch('/api/system_info');
-                const info = await response.json();
-                
-                // CPU
-                document.getElementById('cpu-cores').textContent = 
-                    `${info.cpu.cores}/${info.cpu.threads}`;
-                document.getElementById('cpu-freq').textContent = info.cpu.frequency;
-                document.getElementById('cpu-usage').textContent = 
-                    `${info.cpu.avg_percent.toFixed(1)}%`;
-                document.getElementById('cpu-progress').style.width = 
-                    `${info.cpu.avg_percent}%`;
-                
-                const coresHtml = info.cpu.percent.map((p, i) => 
-                    `<div class="cpu-core">
-                        <span class="cpu-core-label">C${i}</span>
-                        <span class="cpu-core-value">${p.toFixed(1)}%</span>
-                    </div>`
-                ).join('');
-                document.getElementById('cpu-cores-detail').innerHTML = coresHtml;
-                
-                // Memory
-                document.getElementById('mem-total').textContent = info.memory.total;
-                document.getElementById('mem-used').textContent = info.memory.used;
-                document.getElementById('mem-percent').textContent = 
-                    `${info.memory.percent.toFixed(1)}%`;
-                document.getElementById('mem-progress').style.width = 
-                    `${info.memory.percent}%`;
-                
-                // Disk
-                document.getElementById('disk-total').textContent = info.disk.total;
-                document.getElementById('disk-used').textContent = info.disk.used;
-                document.getElementById('disk-percent').textContent = 
-                    `${info.disk.percent.toFixed(1)}%`;
-                document.getElementById('disk-progress').style.width = 
-                    `${info.disk.percent}%`;
-                
-                // GPU
-                if (info.gpu && info.gpu.length > 0) {
-                    const gpuHtml = info.gpu.map(gpu => 
-                        `<div class="gpu-item">
-                            <div class="gpu-name">${gpu.name || 'Unknown GPU'}</div>
-                            <div class="stat-line">
-                                <span class="stat-label">MEMORY</span>
-                                <span class="stat-value">${gpu.memory_used} / ${gpu.memory_total}</span>
-                            </div>
-                            <div class="stat-line">
-                                <span class="stat-label">TEMP</span>
-                                <span class="stat-value">${gpu.temperature}</span>
-                            </div>
-                            <div class="stat-line">
-                                <span class="stat-label">USAGE</span>
-                                <span class="stat-value">${gpu.load}</span>
-                            </div>
+            if (!document.hidden) {
+                try {
+                    const response = await fetch('/api/system_info');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const info = await response.json();
+                    if (info.error) {
+                        throw new Error(info.error);
+                    }
+                    
+                    // CPU
+                    document.getElementById('cpu-cores').textContent = 
+                        `${info.cpu.cores}/${info.cpu.threads}`;
+                    document.getElementById('cpu-freq').textContent = info.cpu.frequency;
+                    document.getElementById('cpu-usage').textContent = 
+                        `${info.cpu.avg_percent.toFixed(1)}%`;
+                    document.getElementById('cpu-progress').style.width = 
+                        `${info.cpu.avg_percent}%`;
+                    
+                    const coresHtml = info.cpu.percent.map((p, i) => 
+                        `<div class="cpu-core">
+                            <span class="cpu-core-label">C${i}</span>
+                            <span class="cpu-core-value">${p.toFixed(1)}%</span>
                         </div>`
                     ).join('');
-                    document.getElementById('gpu-info').innerHTML = gpuHtml;
-                    // Enable GPU toggles if GPU is detected
-                    document.querySelectorAll('.toggle-switch input').forEach(toggle => {
-                        toggle.disabled = false;
-                    });
-                } else {
-                    document.getElementById('gpu-info').innerHTML = 
-                        '<div style="color: var(--text-muted); font-size: 0.75rem;">NO GPU DETECTED</div>';
-                    // Disable GPU toggles if no GPU
-                    document.querySelectorAll('.toggle-switch input').forEach(toggle => {
-                        toggle.checked = false;
-                        toggle.disabled = true;
-                    });
-                }
-                
-                // Processes
-                const processHtml = info.processes.map(proc => 
-                    `<div class="process-row">
-                        <span>${proc.pid}</span>
-                        <span style="color: var(--text-primary);">${proc.name}</span>
-                        <span style="color: var(--accent-cyan);">${proc.cpu}</span>
-                        <span style="color: var(--accent-green);">${proc.memory}</span>
-                    </div>`
-                ).join('');
-                document.getElementById('process-list').innerHTML = processHtml;
-                
-                // Pipeline Status
-                if(info.pipeline) {
-                    document.getElementById('stt-model-name').textContent = info.pipeline.stt_model;
-                    updateDeviceUI('stt-device', info.pipeline.stt_device);
+                    document.getElementById('cpu-cores-detail').innerHTML = coresHtml;
                     
-                    document.getElementById('llm-model-name').textContent = info.pipeline.llm_model;
-                    updateDeviceUI('llm-device', info.pipeline.llm_device);
+                    // Memory
+                    document.getElementById('mem-total').textContent = info.memory.total;
+                    document.getElementById('mem-used').textContent = info.memory.used;
+                    document.getElementById('mem-percent').textContent = 
+                        `${info.memory.percent.toFixed(1)}%`;
+                    document.getElementById('mem-progress').style.width = 
+                        `${info.memory.percent}%`;
+                    
+                    // Disk
+                    document.getElementById('disk-total').textContent = info.disk.total;
+                    document.getElementById('disk-used').textContent = info.disk.used;
+                    document.getElementById('disk-percent').textContent = 
+                        `${info.disk.percent.toFixed(1)}%`;
+                    document.getElementById('disk-progress').style.width = 
+                        `${info.disk.percent}%`;
+                    
+                    // GPU
+                    const gpuInfoEl = document.getElementById('gpu-info');
+                    if (info.gpu && info.gpu.length > 0) {
+                        const gpuHtml = info.gpu.map(gpu => 
+                            `<div class="gpu-item">
+                                <div class="gpu-name">${gpu.name || 'Unknown GPU'}</div>
+                                <div class="stat-line">
+                                    <span class="stat-label">MEMORY</span>
+                                    <span class="stat-value">${gpu.memory_used} / ${gpu.memory_total}</span>
+                                </div>
+                                <div class="stat-line">
+                                    <span class="stat-label">TEMP</span>
+                                    <span class="stat-value">${gpu.temperature}</span>
+                                </div>
+                                <div class="stat-line">
+                                    <span class="stat-label">USAGE</span>
+                                    <span class="stat-value">${gpu.load}</span>
+                                </div>
+                            </div>`
+                        ).join('');
+                        gpuInfoEl.innerHTML = gpuHtml;
+                        setTogglesDisabled(false); // Enable toggles
+                    } else {
+                        gpuInfoEl.innerHTML = 
+                            '<div style="color: var(--text-muted); font-size: 0.75rem;">NO GPU DETECTED</div>';
+                        setTogglesDisabled(true); // Disable toggles
+                    }
+                    
+                    // Processes
+                    const processHtml = info.processes.map(proc => 
+                        `<div class="process-row">
+                            <span>${proc.pid}</span>
+                            <span style="color: var(--text-primary);">${proc.name}</span>
+                            <span style="color: var(--accent-cyan);">${proc.cpu}</span>
+                            <span style="color: var(--accent-green);">${proc.memory}</span>
+                        </div>`
+                    ).join('');
+                    document.getElementById('process-list').innerHTML = processHtml;
+                    
+                    // Pipeline Status
+                    if(info.pipeline) {
+                        document.getElementById('stt-model-name').textContent = info.pipeline.stt_model;
+                        updateDeviceUI('stt-device', info.pipeline.stt_device);
+                        
+                        document.getElementById('llm-model-name').textContent = info.pipeline.llm_model;
+                        updateDeviceUI('llm-device', info.pipeline.llm_device);
 
-                    document.getElementById('tts-model-name').textContent = info.pipeline.tts_model;
-                    updateDeviceUI('tts-device', info.pipeline.tts_device);
+                        document.getElementById('tts-model-name').textContent = info.pipeline.tts_model;
+                        updateDeviceUI('tts-device', info.pipeline.tts_device);
+                    }
+
+                } catch (error) {
+                    console.error('Error updating system info:', error);
+                    document.getElementById('connection-status').textContent = 'SYSTEM OFFLINE';
+                    if (systemInfoInterval) {
+                        clearInterval(systemInfoInterval);
+                    }
                 }
-
-            } catch (error) {
-                console.error('Error updating system info:', error);
             }
         }
         
-        // Initialize
         loadModels();
         updateSystemInfo();
-        setInterval(updateSystemInfo, 2000); // Update every 2 seconds
+        systemInfoInterval = setInterval(updateSystemInfo, 2000);
     </script>
 </body>
 </html>
