@@ -1,4 +1,4 @@
-# ⚡ Speech-to-Command Terminal (S2C) v3.1
+# ⚡ Speech-to-Command Terminal (S2C)
 
 This project is a full-stack, self-hosted web application that translates your voice commands directly into executable shell commands. It features a real-time system monitor and an interactive, 'hacker'-style terminal interface, all powered by a local AI pipeline.
 
